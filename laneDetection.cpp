@@ -1,3 +1,4 @@
+#include <chrono>
 #include <ctime>
 #include <iostream>
 #include <stdio.h>
@@ -10,7 +11,12 @@ using namespace cv;
 Mat frame;
 Mat croppedFrame;
 
+// Other constant used in the process
+bool debug = true;
+Vec3b black(0,0,0);
 const char* mainWindowName = "Lane detection";
+const char* debugCroppedFrame = "Debug - cropped frame";
+
 
 // Varibles used for setting ROI
 Rect cropRect(0,0,0,0);
@@ -97,6 +103,29 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
     }
 }
 
+Mat& filterFrame(Mat& original)
+{
+    Mat& filtered(original);
+    cvtColor(original, filtered, CV_BGR2HSV);
+
+    MatIterator_<Vec3b> it, end;
+    for( it = filtered.begin<Vec3b>(), end = filtered.end<Vec3b>(); it != end; ++it)
+    {
+        // Detect white
+        if ((*it)[1] < 2 || (*it)[2] > 160)
+            continue;
+        // // Detect yellow
+        // if (((*it)[0] > 50 && (*it)[0] < 60))
+        //     continue;
+
+        (*it) = black;
+    }
+
+    cvtColor(filtered, filtered, CV_HSV2BGR);
+
+    return filtered;
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 2)
@@ -119,6 +148,7 @@ int main(int argc, char** argv)
     cout << "Video FPS is " << fps << " and number of frames are " << numOfFrames << endl;
 
     namedWindow(setROIWindowName, WINDOW_NORMAL);
+    resizeWindow(setROIWindowName, 900, 900);
     imshow(setROIWindowName, frame);
     setMouseCallback(setROIWindowName, onMouse, NULL);
 
@@ -135,8 +165,9 @@ int main(int argc, char** argv)
         }
     }
 
-    clock_t begin = clock();
+    auto start = chrono::steady_clock::now();
     namedWindow(mainWindowName);
+    if (debug) namedWindow(debugCroppedFrame);
 
     while (1)
     {
@@ -145,7 +176,8 @@ int main(int argc, char** argv)
             break;
 
         croppedFrame = frame(cropRect);
-        imshow(mainWindowName, croppedFrame);
+        if (debug) imshow(debugCroppedFrame, croppedFrame);
+        imshow(mainWindowName, filterFrame(croppedFrame));
 
         // Press q on keyboard to exit
         char c = (char) waitKey(1.0/fps * 1000.0);
@@ -153,8 +185,8 @@ int main(int argc, char** argv)
             break;
     }
 
-    clock_t end = clock();
-    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    auto end = chrono::steady_clock::now();
+    double elapsed_secs = chrono::duration_cast<chrono::milliseconds>(end - start).count() * 1.0 / 1000.0;
     cout << "Image processing took " << elapsed_secs << "s while video lasted for " << numOfFrames/fps << endl;
 
     video.release();
