@@ -17,7 +17,6 @@ Vec3b black(0,0,0);
 const char* mainWindowName = "Lane detection";
 const char* debugCroppedFrame = "Debug - cropped frame";
 
-
 // Varibles used for setting ROI
 Rect cropRect(0,0,0,0);
 Point P1(0,0);
@@ -111,13 +110,12 @@ Mat& filterFrame(Mat& original)
     MatIterator_<Vec3b> it, end;
     for( it = filtered.begin<Vec3b>(), end = filtered.end<Vec3b>(); it != end; ++it)
     {
-        // Detect white
-        if ((*it)[1] < 2 || (*it)[2] > 160)
+        // Detect yellow
+        if ((*it)[0] > 15 && (*it)[0] < 30 && (*it)[2] > 160)
             continue;
-        // // Detect yellow
-        // if (((*it)[0] > 50 && (*it)[0] < 60))
-        //     continue;
-
+        // Detect white
+        if ((*it)[1] < 0.25*255 && (*it)[2] > (0.85+0.6*(*it)[1]/100)*255)
+            continue;
         (*it) = black;
     }
 
@@ -163,12 +161,16 @@ int main(int argc, char** argv)
             destroyWindow(ROIWindowName);
             break;
         }
+        else if (c == 'q')
+        {
+            return 0;
+        }
     }
 
     auto start = chrono::steady_clock::now();
-    namedWindow(mainWindowName);
     if (debug) namedWindow(debugCroppedFrame);
-
+    namedWindow(mainWindowName);
+    Mat test;
     while (1)
     {
         video >> frame;
@@ -176,13 +178,17 @@ int main(int argc, char** argv)
             break;
 
         croppedFrame = frame(cropRect);
+        test = croppedFrame.clone();
         if (debug) imshow(debugCroppedFrame, croppedFrame);
         imshow(mainWindowName, filterFrame(croppedFrame));
 
         // Press q on keyboard to exit
-        char c = (char) waitKey(1.0/fps * 1000.0);
+        char c = (char) waitKey(1/fps * 1000);
         if( c == 'q' )
             break;
+
+        if (debug && c == 't')
+            imwrite("test.jpg", test);
     }
 
     auto end = chrono::steady_clock::now();
