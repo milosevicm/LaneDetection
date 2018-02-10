@@ -113,9 +113,13 @@ Mat& filterFrame(Mat& original)
         // Detect yellow
         if ((*it)[0] > 15 && (*it)[0] < 30 && (*it)[2] > 160)
             continue;
-        // Detect white
-        if ((*it)[1] < 0.25*255 && (*it)[2] > (0.85+0.6*(*it)[1]/100)*255)
+        // Detect bright white
+        if ((*it)[2] > 0.6*255 && (*it)[1] < (-0.2*(*it)[1]/100 + 0.3)*255)
             continue;
+        // Detect dark white
+        if ((*it)[1] > 10 && (*it)[2] > ((*it)[1]+20)/100.0*255 && (*it)[2] < ((*it)[1]+40)/100.0*255)
+            continue;
+
         (*it) = black;
     }
 
@@ -178,17 +182,14 @@ int main(int argc, char** argv)
             break;
 
         croppedFrame = frame(cropRect);
-        test = croppedFrame.clone();
+        blur(croppedFrame, croppedFrame, Size(3, 3), Point(-1,-1));
         if (debug) imshow(debugCroppedFrame, croppedFrame);
         imshow(mainWindowName, filterFrame(croppedFrame));
 
         // Press q on keyboard to exit
-        char c = (char) waitKey(1/fps * 1000);
+        char c = (char) waitKey(1/fps*1000);
         if( c == 'q' )
             break;
-
-        if (debug && c == 't')
-            imwrite("test.jpg", test);
     }
 
     auto end = chrono::steady_clock::now();
