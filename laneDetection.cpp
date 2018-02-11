@@ -7,15 +7,29 @@
 using namespace std;
 using namespace cv;
 
+// Parameters
+int colorsBlurKernelSize = 3;
+int colorsTreshold = 1;
+int edgesBlurKernelSize = 5;
+int cannyLowTreshold = 60;
+int cannyRatio = 3;
+int cannyKernelSize = 3;
+
 // Frames used by the program
 Mat frame;
 Mat croppedFrame;
+Mat colors;
+Mat edges;
+Mat lanes;
 
 // Other constant used in the process
-bool debug = true;
+bool debug = false;
 Vec3b black(0,0,0);
 const char* mainWindowName = "Lane detection";
+const char* debugOriginalFrame = "Debug - original frame";
 const char* debugCroppedFrame = "Debug - cropped frame";
+const char* debugColorsFrame = "Debug - colors frame";
+const char* debugEdgesFrame = "Debug - edges frame";
 
 // Varibles used for setting ROI
 Rect cropRect(0,0,0,0);
@@ -102,7 +116,7 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
     }
 }
 
-Mat& filterFrame(Mat& original)
+Mat& detectColors(Mat& original)
 {
     Mat& filtered(original);
     cvtColor(original, filtered, CV_BGR2HSV);
@@ -163,6 +177,7 @@ int main(int argc, char** argv)
         {
             destroyWindow(setROIWindowName);
             destroyWindow(ROIWindowName);
+            destroyWindow(mainWindowName);
             break;
         }
         else if (c == 'q')
@@ -181,10 +196,28 @@ int main(int argc, char** argv)
         if (frame.empty())
             break;
 
+        if (debug) imshow(debugOriginalFrame, frame);
         croppedFrame = frame(cropRect);
-        blur(croppedFrame, croppedFrame, Size(3, 3), Point(-1,-1));
+        colors = croppedFrame.clone();
+        edges = croppedFrame.clone();
         if (debug) imshow(debugCroppedFrame, croppedFrame);
-        imshow(mainWindowName, filterFrame(croppedFrame));
+        
+        blur(colors, colors, Size(colorsBlurKernelSize, colorsBlurKernelSize));
+        if (debug) imshow(debugColorsFrame, detectColors(colors));
+        cvtColor(colors, colors, CV_BGR2GRAY);
+        threshold(colors, colors, colorsTreshold, 255, 0);
+        dilate(colors, colors, Mat());
+
+        blur(edges, edges, Size(edgesBlurKernelSize, edgesBlurKernelSize));
+        cvtColor(edges, edges, CV_BGR2GRAY);
+        Canny(edges, edges, cannyLowTreshold, cannyLowTreshold*cannyRatio, cannyKernelSize);
+        if (debug) imshow(debugEdgesFrame, edges);
+        dilate(edges, edges, Mat());
+
+        bitwise_and(colors, edges, lanes);
+        cvtColor(lanes, lanes, CV_GRAY2BGR);
+        lanes.copyTo(croppedFrame);
+        imshow(mainWindowName, frame);
 
         // Press q on keyboard to exit
         char c = (char) waitKey(1/fps*1000);
