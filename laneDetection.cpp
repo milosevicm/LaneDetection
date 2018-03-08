@@ -8,11 +8,11 @@ using namespace std;
 using namespace cv;
 
 // Parameters
-int whiteSensitivity = 50;
+int whiteSensitivity = 80;
 int colorsBlurKernelSize = 3;
 int colorsTreshold = 1;
 int edgesBlurKernelSize = 5;
-int cannyLowTreshold = 60;
+int cannyLowTreshold = 55;
 int cannyRatio = 3;
 int cannyKernelSize = 3;
 
@@ -29,7 +29,7 @@ Mat lanes;
 bool debug = true;
 Vec3b black(0,0,0);
 Scalar yellowLow(15,0,160);
-Scalar yellowHigh(30,255,255);
+Scalar yellowHigh(25,255,255);
 Scalar whiteLow(0,0,255-whiteSensitivity);
 Scalar whiteHigh(255,whiteSensitivity,255);
 const char* mainWindowName = "Lane detection";
@@ -123,32 +123,6 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
     }
 }
 
-Mat& detectColors(Mat& original)
-{
-    Mat& filtered(original);
-    cvtColor(original, filtered, CV_BGR2HSV);
-
-    MatIterator_<Vec3b> it, end;
-    for( it = filtered.begin<Vec3b>(), end = filtered.end<Vec3b>(); it != end; ++it)
-    {
-        // Detect yellow
-        if ((*it)[0] > 15 && (*it)[0] < 30 && (*it)[2] > 160)
-            continue;
-        // Detect bright white
-        if ((*it)[2] > 0.6*255 && (*it)[1] < (-0.2*(*it)[1]/100 + 0.3)*255)
-            continue;
-        // Detect dark white
-        if ((*it)[1] > 10 && (*it)[2] > ((*it)[1]+20)/100.0*255 && (*it)[2] < ((*it)[1]+40)/100.0*255)
-            continue;
-
-        (*it) = black;
-    }
-
-    cvtColor(filtered, filtered, CV_HSV2BGR);
-
-    return filtered;
-}
-
 int main(int argc, char** argv)
 {
     if (argc < 2)
@@ -203,7 +177,6 @@ int main(int argc, char** argv)
         if (frame.empty())
             break;
 
-        if (debug) imshow(debugOriginalFrame, frame);
         croppedFrame = frame(cropRect);
         colors = croppedFrame.clone();
         edges = croppedFrame.clone();
@@ -213,7 +186,7 @@ int main(int argc, char** argv)
         cvtColor(colors, colors, CV_BGR2HSV);
         inRange(colors, yellowLow, yellowHigh, yellow);
         inRange(colors, whiteLow, whiteHigh, white);
-        bitwise_and(yellow, white, colors);
+        bitwise_or(yellow, white, colors);
         if (debug) imshow(debugColorsFrame, colors);
         if (debug) imshow("Yellow", yellow);
         if (debug) imshow("White", white);
