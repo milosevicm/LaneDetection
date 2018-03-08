@@ -8,6 +8,7 @@ using namespace std;
 using namespace cv;
 
 // Parameters
+int whiteSensitivity = 50;
 int colorsBlurKernelSize = 3;
 int colorsTreshold = 1;
 int edgesBlurKernelSize = 5;
@@ -19,12 +20,18 @@ int cannyKernelSize = 3;
 Mat frame;
 Mat croppedFrame;
 Mat colors;
+Mat yellow;
+Mat white;
 Mat edges;
 Mat lanes;
 
 // Other constant used in the process
-bool debug = false;
+bool debug = true;
 Vec3b black(0,0,0);
+Scalar yellowLow(15,0,160);
+Scalar yellowHigh(30,255,255);
+Scalar whiteLow(0,0,255-whiteSensitivity);
+Scalar whiteHigh(255,whiteSensitivity,255);
 const char* mainWindowName = "Lane detection";
 const char* debugOriginalFrame = "Debug - original frame";
 const char* debugCroppedFrame = "Debug - cropped frame";
@@ -203,9 +210,13 @@ int main(int argc, char** argv)
         if (debug) imshow(debugCroppedFrame, croppedFrame);
         
         blur(colors, colors, Size(colorsBlurKernelSize, colorsBlurKernelSize));
-        if (debug) imshow(debugColorsFrame, detectColors(colors));
-        cvtColor(colors, colors, CV_BGR2GRAY);
-        threshold(colors, colors, colorsTreshold, 255, 0);
+        cvtColor(colors, colors, CV_BGR2HSV);
+        inRange(colors, yellowLow, yellowHigh, yellow);
+        inRange(colors, whiteLow, whiteHigh, white);
+        bitwise_and(yellow, white, colors);
+        if (debug) imshow(debugColorsFrame, colors);
+        if (debug) imshow("Yellow", yellow);
+        if (debug) imshow("White", white);
         dilate(colors, colors, Mat());
 
         blur(edges, edges, Size(edgesBlurKernelSize, edgesBlurKernelSize));
