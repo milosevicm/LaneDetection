@@ -16,8 +16,8 @@ int edgesBlurKernelSize = 5;
 int cannyLowTreshold = 55;
 int cannyRatio = 3;
 int cannyKernelSize = 3;
-Scalar yellowLow(15,0,200);
-Scalar yellowHigh(25,255,255);
+Scalar yellowLow(15,100,100);
+Scalar yellowHigh(40,255,255);
 Scalar whiteLow(0,0,255-whiteSensitivity);
 Scalar whiteHigh(255,whiteSensitivity,255);
 Mat dilateElement = getStructuringElement(MORPH_RECT, Size(3,3));
@@ -38,9 +38,9 @@ Mat lanes;
 bool debug = true;
 const char* mainWindowName = "Lane detection";
 const char* debugOriginalFrame = "Debug - original frame";
-const char* debugCroppedFrame = "Debug - cropped frame";
 const char* debugColorsFrame = "Debug - colors frame";
 const char* debugEdgesFrame = "Debug - edges frame";
+const char* debugLanesFrame = "Debug - lanes frame";
 
 // Varibles used for setting ROI
 Rect cropRect(0,0,0,0);
@@ -172,9 +172,8 @@ int main(int argc, char** argv)
     }
 
     auto start = chrono::steady_clock::now();
-    if (debug) namedWindow(debugCroppedFrame);
     namedWindow(mainWindowName);
-    Mat test;
+
     while (1)
     {
         video >> frame;
@@ -184,7 +183,6 @@ int main(int argc, char** argv)
         croppedFrame = frame(cropRect);
         colors = croppedFrame.clone();
         edges = croppedFrame.clone();
-        if (debug) imshow(debugCroppedFrame, croppedFrame);
         
         blur(colors, colors, Size(colorsBlurKernelSize, colorsBlurKernelSize));
         cvtColor(colors, colors, CV_BGR2HSV);
@@ -203,19 +201,18 @@ int main(int argc, char** argv)
         dilate(edges, edges, dilateElement);
 
         bitwise_and(colors, edges, lanes);
-        HoughLinesP(lanes, houghLanes, 1, CV_PI/180, 80, 30, 10);
+        imshow(debugLanesFrame, lanes);
+        HoughLinesP(lanes, houghLanes, 1, CV_PI/180, 80, 60, 5);
 
-        cvtColor(lanes, lanes, CV_GRAY2BGR);
         for( size_t i = 0; i < houghLanes.size(); i++ )
         {
             if (abs((double)(houghLanes[i][3]-houghLanes[i][1]) / 
-                (double)(houghLanes[i][2]-houghLanes[i][0])) > 0.6)
+                (double)(houghLanes[i][2]-houghLanes[i][0])) > 0.5)
             {
-                line(lanes, Point(houghLanes[i][0], houghLanes[i][1]),
-                    Point(houghLanes[i][2], houghLanes[i][3]), Scalar(0,0,255), 3, 8 );
+                line(frame, Point(houghLanes[i][0]+cropRect.x, houghLanes[i][1]+cropRect.y),
+                    Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
             }
         }
-        lanes.copyTo(croppedFrame); 
         imshow(mainWindowName, frame);
 
         // Press q on keyboard to exit
