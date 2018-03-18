@@ -127,6 +127,27 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
     }
 }
 
+// Method that clasifies lines obtained by Hough transformation
+void clasify(vector<Vec4i> lines)
+{
+    vector<double> slopes;
+    vector<int> xIntercept;
+
+    for( size_t i = 0; i < lines.size(); i++ )
+    {
+        double k = (double)(lines[i][1]-lines[i][3]) / (double)(lines[i][2]-lines[i][0]);
+
+        // Reject lines that are not in range of 25..60 degrees
+        if (abs(k) > 0.5 && abs(k) < 2)
+        {
+            slopes.push_back(k);
+
+            int n = lines[i][0]-(cropRect.height-lines[i][1])/k;
+            xIntercept.push_back(n);
+        }        
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 2)
@@ -204,6 +225,8 @@ int main(int argc, char** argv)
         imshow(debugLanesFrame, lanes);
         HoughLinesP(lanes, houghLanes, 1, CV_PI/180, 80, 60, 5);
 
+        clasify(houghLanes);
+
         for( size_t i = 0; i < houghLanes.size(); i++ )
         {
             if (abs((double)(houghLanes[i][3]-houghLanes[i][1]) / 
@@ -216,7 +239,7 @@ int main(int argc, char** argv)
         imshow(mainWindowName, frame);
 
         // Press q on keyboard to exit
-        char c = (char) waitKey(1/fps*1000);
+        char c = (char) waitKey();
         if( c == 'q' )
             break;
     }
