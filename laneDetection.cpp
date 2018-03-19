@@ -9,6 +9,8 @@ using namespace std;
 using namespace cv;
 
 // Parameters
+double minSlopeDetection = tan(20*CV_PI/180);
+double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
 int colorsBlurKernelSize = 3;
 int colorsTreshold = 1;
@@ -20,7 +22,7 @@ Scalar yellowLow(15,100,100);
 Scalar yellowHigh(40,255,255);
 Scalar whiteLow(0,0,255-whiteSensitivity);
 Scalar whiteHigh(255,whiteSensitivity,255);
-Mat dilateElement = getStructuringElement(MORPH_RECT, Size(3,3));
+Mat dilateElement = getStructuringElement(MORPH_RECT, Size(3,5));
 
 // Shared variables
 vector<Vec4i> houghLanes;
@@ -35,12 +37,8 @@ Mat edges;
 Mat lanes;
 
 // Other constant used in the process
-bool debug = true;
+bool debug = false;
 const char* mainWindowName = "Lane detection";
-const char* debugOriginalFrame = "Debug - original frame";
-const char* debugColorsFrame = "Debug - colors frame";
-const char* debugEdgesFrame = "Debug - edges frame";
-const char* debugLanesFrame = "Debug - lanes frame";
 
 // Varibles used for setting ROI
 Rect cropRect(0,0,0,0);
@@ -138,14 +136,21 @@ void clasify(vector<Vec4i> lines)
         double k = (double)(lines[i][1]-lines[i][3]) / (double)(lines[i][2]-lines[i][0]);
 
         // Reject lines that are not in range of 25..60 degrees
-        if (abs(k) > 0.5 && abs(k) < 2)
+        if (abs(k) > minSlopeDetection && abs(k) < maxSlopeDetection)
         {
             slopes.push_back(k);
 
             int n = lines[i][0]-(cropRect.height-lines[i][1])/k;
             xIntercept.push_back(n);
+
+            cout << "n= " << n << "\tk= " << k << endl;
+
+                        line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
+                Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), Scalar(255,0,0), 3, 8 );
         }        
     }
+
+    cout << lines.size() - slopes.size() << endl;
 }
 
 int main(int argc, char** argv)
@@ -210,36 +215,32 @@ int main(int argc, char** argv)
         inRange(colors, yellowLow, yellowHigh, yellow);
         inRange(colors, whiteLow, whiteHigh, white);
         bitwise_or(yellow, white, colors);
-        // if (debug) imshow(debugColorsFrame, colors);
-        if (debug) imshow("Yellow", yellow);
-        if (debug) imshow("White", white);
+        if (debug) imshow("Debug - Yellow", yellow);
+        if (debug) imshow("Debug - White", white);
         dilate(colors, colors, dilateElement);
 
         blur(edges, edges, Size(edgesBlurKernelSize, edgesBlurKernelSize));
         cvtColor(edges, edges, CV_BGR2GRAY);
         Canny(edges, edges, cannyLowTreshold, cannyLowTreshold*cannyRatio, cannyKernelSize);
-        if (debug) imshow(debugEdgesFrame, edges);
+        if (debug) imshow("Debug - Edges", edges);
         dilate(edges, edges, dilateElement);
 
         bitwise_and(colors, edges, lanes);
-        imshow(debugLanesFrame, lanes);
+        if (debug) imshow("Debug - Lanes", lanes);
         HoughLinesP(lanes, houghLanes, 1, CV_PI/180, 80, 60, 5);
-
-        clasify(houghLanes);
 
         for( size_t i = 0; i < houghLanes.size(); i++ )
         {
-            if (abs((double)(houghLanes[i][3]-houghLanes[i][1]) / 
-                (double)(houghLanes[i][2]-houghLanes[i][0])) > 0.5)
-            {
-                line(frame, Point(houghLanes[i][0]+cropRect.x, houghLanes[i][1]+cropRect.y),
-                    Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
-            }
+            line(frame, Point(houghLanes[i][0]+cropRect.x, houghLanes[i][1]+cropRect.y),
+                Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
         }
+
+        clasify(houghLanes);
+
         imshow(mainWindowName, frame);
 
         // Press q on keyboard to exit
-        char c = (char) waitKey();
+        char c = (char) waitKey(0.5/fps*1000);
         if( c == 'q' )
             break;
     }
