@@ -18,6 +18,9 @@ int edgesBlurKernelSize = 5;
 int cannyLowTreshold = 55;
 int cannyRatio = 3;
 int cannyKernelSize = 3;
+int houghTreshold = 80;
+int houghLength = 50;
+int houghGap = 5;
 Scalar yellowLow(15,100,100);
 Scalar yellowHigh(40,255,255);
 Scalar whiteLow(0,0,255-whiteSensitivity);
@@ -37,7 +40,7 @@ Mat edges;
 Mat lanes;
 
 // Other constant used in the process
-bool debug = false;
+bool debug = true;
 const char* mainWindowName = "Lane detection";
 
 // Varibles used for setting ROI
@@ -227,7 +230,7 @@ int main(int argc, char** argv)
 
         bitwise_and(colors, edges, lanes);
         if (debug) imshow("Debug - Lanes", lanes);
-        HoughLinesP(lanes, houghLanes, 1, CV_PI/180, 80, 60, 5);
+        HoughLinesP(lanes, houghLanes, 1, CV_PI/180, houghTreshold, houghLength, houghGap);
 
         for( size_t i = 0; i < houghLanes.size(); i++ )
         {
@@ -240,7 +243,12 @@ int main(int argc, char** argv)
         imshow(mainWindowName, frame);
 
         // Press q on keyboard to exit
-        char c = (char) waitKey(0.5/fps*1000);
+        char c;
+        if (debug && argc == 3)
+            c = (char) waitKey();
+        else
+            c = (char) waitKey(1/fps*1000);
+
         if( c == 'q' )
             break;
     }
