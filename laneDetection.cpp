@@ -232,10 +232,13 @@ int main(int argc, char** argv)
         if (debug) imshow("Debug - Lanes", lanes);
         HoughLinesP(lanes, houghLanes, 1, CV_PI/180, houghTreshold, houghLength, houghGap);
 
-        for( size_t i = 0; i < houghLanes.size(); i++ )
+        if (debug)
         {
-            line(frame, Point(houghLanes[i][0]+cropRect.x, houghLanes[i][1]+cropRect.y),
-                Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
+            for( size_t i = 0; i < houghLanes.size(); i++ )
+            {
+                line(frame, Point(houghLanes[i][0]+cropRect.x, houghLanes[i][1]+cropRect.y),
+                    Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
+            }
         }
 
         clasify(houghLanes);
@@ -244,7 +247,7 @@ int main(int argc, char** argv)
 
         // Press q on keyboard to exit
         char c;
-        if (debug && argc == 3)
+        if (debug)
             c = (char) waitKey();
         else
             c = (char) waitKey(1/fps*1000);
