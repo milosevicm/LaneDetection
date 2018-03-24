@@ -2,6 +2,7 @@
 #include <ctime>
 #include <iostream>
 #include <numeric>
+#include "assert.h"
 #include "math.h"
 #include "stdio.h"
 #include "opencv2/opencv.hpp"
@@ -10,7 +11,7 @@ using namespace std;
 using namespace cv;
 
 // Parameters
-double recombineThreshold = 30;
+double recombineThreshold = 20;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
@@ -146,19 +147,23 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
 }
 
 // Method that displays lines on the main frame
-void displayLines(vector<Vec4i> lines, Scalar color)
+void displayLines(vector<double> slopes, vector<int> intercepts, Scalar color)
 {
-    for (int i = 0; i < lines.size(); i++)
+    assert(slopes.size() == intercepts.size());
+
+    for (int i = 0; i < slopes.size(); i++)
     {
-        line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
-                Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), color, 3, 8 );
+        line(frame, Point((cropRect.height+slopes[i]*intercepts[i])/slopes[i] +cropRect.x, cropRect.y),
+                Point(intercepts[i]+cropRect.x, cropRect.height+cropRect.y), color, 3, 8 );
     }
 
 }
 
 // Method that separates noise lines, if no line is separated returns false
-bool recombine(vector<double> slopes, vector<int> intercepts)
+bool recombine(vector<double>& slopes, vector<int>& intercepts)
 {
+    assert(slopes.size() == intercepts.size());
+
     lastAverageSlope = accumulate(slopes.begin(), slopes.end(), 0.0)/slopes.size();
     lastAverageIntercept = accumulate(intercepts.begin(), intercepts.end(), 0.0)/intercepts.size();
 
@@ -169,14 +174,15 @@ bool recombine(vector<double> slopes, vector<int> intercepts)
         if (delta > recombineThreshold)
         {
             noiseSlopes.push_back(slopes[i]);
-            noiseIntercepts.push_back(slopes[i]);
+            noiseIntercepts.push_back(intercepts[i]);
             slopes.erase(slopes.begin() + i);
             intercepts.erase(intercepts.begin() + i);
+
             return true;
         }
-
-        return false;
     }
+
+    return false;
 }
 
 // Method that clasifies lines obtained by Hough transformation
@@ -195,7 +201,7 @@ void clasify(vector<Vec4i> lines)
     {
         double k = (double)(lines[i][1]-lines[i][3]) / (double)(lines[i][2]-lines[i][0]);
 
-        // Reject lines that are not in range of 25..60 degrees
+        // Reject lines that are not in range of 20..60 degrees
         if (abs(k) > minSlopeDetection && abs(k) < maxSlopeDetection)
         {
             int n = lines[i][0]-(cropRect.height-lines[i][1])/k;
@@ -211,24 +217,30 @@ void clasify(vector<Vec4i> lines)
                 rightSlopes.push_back(k);
                 rightXIntercepts.push_back(n);
                 rightLines.push_back(lines[i]);
-
-                line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
-                Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), Scalar(255,0,0), 3, 8 );
             }
         }    
     }
 
-    while (recombine(leftSlopes, leftXIntercepts));
-    leftSlope = lastAverageSlope;
-    leftXIntercept = lastAverageIntercept;
-    displayLines(leftLines, Scalar(0, 255, 0));
+    if (leftSlopes.size() > 0)
+    {
+        while (recombine(leftSlopes, leftXIntercepts));
+        leftSlope = lastAverageSlope;
+        leftXIntercept = lastAverageIntercept;
+        displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 0));
+    }
 
-    while(recombine(rightSlopes, rightXIntercepts));
-    rightSlope = lastAverageSlope;
-    rightXIntercept = lastAverageIntercept;
-    displayLines(rightLines, Scalar(255, 0, 0));
+    if (rightSlopes.size() > 0)
+    {
+        while (recombine(rightSlopes, rightXIntercepts));
+        rightSlope = lastAverageSlope;
+        rightXIntercept = lastAverageIntercept;
+        displayLines(rightSlopes, rightXIntercepts, Scalar(255, 0, 0));
+    }
+
+    displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 255, 255));
 
     cout << leftSlope << "\t" << leftXIntercept << "\t" << rightSlope << "\t" << rightXIntercept << endl;
+    cout << "Noise:\t" << noiseIntercepts.size() << endl;
 }
 
 int main(int argc, char** argv)
@@ -270,6 +282,7 @@ int main(int argc, char** argv)
             destroyWindow(ROIWindowName);
             destroyWindow(mainWindowName);
             halfOfROIWidth = cropRect.width/2;
+            assert(halfOfROIWidth > 0);
             break;
         }
         else if (c == 'q')
