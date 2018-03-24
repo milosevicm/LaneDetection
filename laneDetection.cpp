@@ -44,6 +44,7 @@ bool debug = true;
 const char* mainWindowName = "Lane detection";
 
 // Varibles used for setting ROI
+int halfOfROIWidth = 0;
 Rect cropRect(0,0,0,0);
 Point P1(0,0);
 Point P2(0,0);
@@ -131,8 +132,13 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
 // Method that clasifies lines obtained by Hough transformation
 void clasify(vector<Vec4i> lines)
 {
-    vector<double> slopes;
-    vector<int> xIntercept;
+    vector<double>  leftSlopes;
+    vector<int>     leftXIntercept;
+    vector<Vec4i>   leftLines;
+    vector<double>  rightSlopes;
+    vector<int>     rightXIntercept;
+    vector<Vec4i>   rightLines;
+    vector<Vec4i>   noiseLines;
 
     for( size_t i = 0; i < lines.size(); i++ )
     {
@@ -141,19 +147,27 @@ void clasify(vector<Vec4i> lines)
         // Reject lines that are not in range of 25..60 degrees
         if (abs(k) > minSlopeDetection && abs(k) < maxSlopeDetection)
         {
-            slopes.push_back(k);
-
             int n = lines[i][0]-(cropRect.height-lines[i][1])/k;
-            xIntercept.push_back(n);
 
-            cout << "n= " << n << "\tk= " << k << endl;
+            if (n < halfOfROIWidth)
+            {
+                leftSlopes.push_back(k);
+                leftXIntercept.push_back(n);
+                leftLines.push_back(lines[i]);
+                            line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
+                Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), Scalar(0,255,0), 3, 8 );
+            }
+            else
+            {
+                rightSlopes.push_back(k);
+                rightXIntercept.push_back(n);
+                rightLines.push_back(lines[i]);
 
-                        line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
+                            line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
                 Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), Scalar(255,0,0), 3, 8 );
+            }
         }        
     }
-
-    cout << lines.size() - slopes.size() << endl;
 }
 
 int main(int argc, char** argv)
@@ -163,6 +177,8 @@ int main(int argc, char** argv)
         cout << "Not enough input parameters. First input parameter should be the path to video." << endl;
         return 1;
     }
+
+    debug = argc > 2;
 
     VideoCapture video(argv[1]);
 
@@ -192,6 +208,7 @@ int main(int argc, char** argv)
             destroyWindow(setROIWindowName);
             destroyWindow(ROIWindowName);
             destroyWindow(mainWindowName);
+            halfOfROIWidth = cropRect.width/2;
             break;
         }
         else if (c == 'q')
