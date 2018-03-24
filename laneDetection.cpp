@@ -1,6 +1,7 @@
 #include <chrono>
 #include <ctime>
 #include <iostream>
+#include <numeric>
 #include "math.h"
 #include "stdio.h"
 #include "opencv2/opencv.hpp"
@@ -9,6 +10,7 @@ using namespace std;
 using namespace cv;
 
 // Parameters
+double recombineThreshold = 30;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
@@ -29,6 +31,20 @@ Mat dilateElement = getStructuringElement(MORPH_RECT, Size(3,5));
 
 // Shared variables
 vector<Vec4i> houghLanes;
+vector<double>  leftSlopes;
+vector<int>     leftXIntercepts;
+vector<Vec4i>   leftLines;
+vector<double>  rightSlopes;
+vector<int>     rightXIntercepts;
+vector<Vec4i>   rightLines;
+vector<double>  noiseSlopes;
+vector<int>     noiseIntercepts;
+double          leftSlope;
+int             leftXIntercept;
+double          rightSlope;
+int             rightXIntercept;
+double          lastAverageSlope;
+int             lastAverageIntercept;
 
 // Frames used by the program
 Mat frame;
@@ -129,16 +145,51 @@ void onMouse(int event, int mouseX, int mouseY, int flags, void* params)
     }
 }
 
+// Method that displays lines on the main frame
+void displayLines(vector<Vec4i> lines, Scalar color)
+{
+    for (int i = 0; i < lines.size(); i++)
+    {
+        line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
+                Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), color, 3, 8 );
+    }
+
+}
+
+// Method that separates noise lines, if no line is separated returns false
+bool recombine(vector<double> slopes, vector<int> intercepts)
+{
+    lastAverageSlope = accumulate(slopes.begin(), slopes.end(), 0.0)/slopes.size();
+    lastAverageIntercept = accumulate(intercepts.begin(), intercepts.end(), 0.0)/intercepts.size();
+
+    for (int i = 0; i < slopes.size(); i++)
+    {
+        double delta = abs(slopes[i]-lastAverageSlope)*10 + abs(intercepts[i]-lastAverageIntercept);
+
+        if (delta > recombineThreshold)
+        {
+            noiseSlopes.push_back(slopes[i]);
+            noiseIntercepts.push_back(slopes[i]);
+            slopes.erase(slopes.begin() + i);
+            intercepts.erase(intercepts.begin() + i);
+            return true;
+        }
+
+        return false;
+    }
+}
+
 // Method that clasifies lines obtained by Hough transformation
 void clasify(vector<Vec4i> lines)
 {
-    vector<double>  leftSlopes;
-    vector<int>     leftXIntercept;
-    vector<Vec4i>   leftLines;
-    vector<double>  rightSlopes;
-    vector<int>     rightXIntercept;
-    vector<Vec4i>   rightLines;
-    vector<Vec4i>   noiseLines;
+    leftSlopes.clear();
+    leftXIntercepts.clear();
+    leftLines.clear();
+    rightSlopes.clear();
+    rightXIntercepts.clear();
+    rightLines.clear();
+    noiseSlopes.clear();
+    noiseIntercepts.clear();
 
     for( size_t i = 0; i < lines.size(); i++ )
     {
@@ -152,22 +203,32 @@ void clasify(vector<Vec4i> lines)
             if (n < halfOfROIWidth)
             {
                 leftSlopes.push_back(k);
-                leftXIntercept.push_back(n);
+                leftXIntercepts.push_back(n);
                 leftLines.push_back(lines[i]);
-                            line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
-                Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), Scalar(0,255,0), 3, 8 );
             }
             else
             {
                 rightSlopes.push_back(k);
-                rightXIntercept.push_back(n);
+                rightXIntercepts.push_back(n);
                 rightLines.push_back(lines[i]);
 
-                            line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
+                line(frame, Point(lines[i][0]+cropRect.x, lines[i][1]+cropRect.y),
                 Point(lines[i][2]+cropRect.x, lines[i][3]+cropRect.y), Scalar(255,0,0), 3, 8 );
             }
-        }        
+        }    
     }
+
+    while (recombine(leftSlopes, leftXIntercepts));
+    leftSlope = lastAverageSlope;
+    leftXIntercept = lastAverageIntercept;
+    displayLines(leftLines, Scalar(0, 255, 0));
+
+    while(recombine(rightSlopes, rightXIntercepts));
+    rightSlope = lastAverageSlope;
+    rightXIntercept = lastAverageIntercept;
+    displayLines(rightLines, Scalar(255, 0, 0));
+
+    cout << leftSlope << "\t" << leftXIntercept << "\t" << rightSlope << "\t" << rightXIntercept << endl;
 }
 
 int main(int argc, char** argv)
