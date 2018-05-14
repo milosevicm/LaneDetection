@@ -169,7 +169,8 @@ bool recombine(vector<double>& slopes, vector<int>& intercepts)
 
     for (int i = 0; i < slopes.size(); i++)
     {
-        double delta = abs(slopes[i]-lastAverageSlope)*10 + abs(intercepts[i]-lastAverageIntercept);
+        double delta = abs(slopes[i]-lastAverageSlope)*10 +
+            abs((cropRect.height/slopes[i]+intercepts[i])-(cropRect.height/lastAverageSlope+lastAverageIntercept));
 
         if (delta > recombineThreshold)
         {
@@ -226,7 +227,9 @@ void clasify(vector<Vec4i> lines)
         while (recombine(leftSlopes, leftXIntercepts));
         leftSlope = lastAverageSlope;
         leftXIntercept = lastAverageIntercept;
-        displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 0));
+        // displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 0));
+        line(frame, Point((cropRect.height+leftSlope*leftXIntercept)/leftSlope +cropRect.x, cropRect.y),
+                Point(leftXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(0,255,0), 3, 8 ); 
     }
 
     if (rightSlopes.size() > 0)
@@ -234,13 +237,12 @@ void clasify(vector<Vec4i> lines)
         while (recombine(rightSlopes, rightXIntercepts));
         rightSlope = lastAverageSlope;
         rightXIntercept = lastAverageIntercept;
-        displayLines(rightSlopes, rightXIntercepts, Scalar(255, 0, 0));
+        // displayLines(rightSlopes, rightXIntercepts, Scalar(255, 0, 0));
+        line(frame, Point((cropRect.height+rightSlope*rightXIntercept)/rightSlope +cropRect.x, cropRect.y),
+                Point(rightXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(255,0,0), 3, 8 );  
     }
 
-    displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 255, 255));
-
-    cout << leftSlope << "\t" << leftXIntercept << "\t" << rightSlope << "\t" << rightXIntercept << endl;
-    cout << "Noise:\t" << noiseIntercepts.size() << endl;
+    // displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 255, 255)); 
 }
 
 int main(int argc, char** argv)
@@ -331,7 +333,6 @@ int main(int argc, char** argv)
                     Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
             }
         }
-
         clasify(houghLanes);
 
         imshow(mainWindowName, frame);
