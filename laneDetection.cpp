@@ -11,20 +11,18 @@ using namespace std;
 using namespace cv;
 
 // Parameters
-double recombineThreshold = 20;
-double deviationSlopeTreshold = 0.03;
-double deviationInterceptTreshold = 30;
+double recombineThreshold = 15;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
 int colorsBlurKernelSize = 3;
 int colorsTreshold = 1;
 int edgesBlurKernelSize = 5;
-int cannyLowTreshold = 55;
+int cannyLowTreshold = 40;
 int cannyRatio = 3;
 int cannyKernelSize = 3;
-int houghTreshold = 80;
-int houghLength = 50;
+int houghTreshold = 50;
+int houghLength = 25;
 int houghGap = 5;
 Scalar yellowLow(15,100,100);
 Scalar yellowHigh(40,255,255);
@@ -33,7 +31,7 @@ Scalar whiteHigh(255,whiteSensitivity,255);
 Mat dilateElement = getStructuringElement(MORPH_RECT, Size(3,5));
 
 // Shared variables
-vector<Vec4i> houghLanes;
+vector<Vec4i>   houghLanes;
 vector<double>  leftSlopes;
 vector<int>     leftXIntercepts;
 vector<Vec4i>   leftLines;
@@ -63,7 +61,7 @@ Mat edges;
 Mat lanes;
 
 // Other constant used in the process
-bool debug = true;
+bool debug = false;
 const char* mainWindowName = "Lane detection";
 
 // Varibles used for setting ROI
@@ -166,66 +164,47 @@ void displayLines(vector<double> slopes, vector<int> intercepts, Scalar color)
 }
 
 // Method that separates noise lines, if no line is separated returns false
-bool recombine(vector<double>& slopes, vector<int>& intercepts, bool isRight)
+bool recombine(vector<double>& slopes, vector<int>& intercepts, double found)
 {
     assert(slopes.size() == intercepts.size());
 
     lastAverageSlope = accumulate(slopes.begin(), slopes.end(), 0.0)/slopes.size();
     lastAverageIntercept = accumulate(intercepts.begin(), intercepts.end(), 0.0)/intercepts.size();
 
-    double deviationSlope = sqrt(inner_product(slopes.begin(), slopes.end(), slopes.begin(), 0.0)/slopes.size() - lastAverageSlope*lastAverageSlope);
-    double deviationIntercept = sqrt(inner_product(intercepts.begin(), intercepts.end(), intercepts.begin(), 0.0)/intercepts.size() - lastAverageIntercept*lastAverageIntercept);
+    double maxDist = 0;
+    int maxIdx = 0;
+    double distance = 0;
 
-    if ((isRight && deviationSlope < deviationSlopeTreshold) || (!isRight && deviationIntercept < deviationInterceptTreshold))
+    for (size_t i = 0; i < slopes.size(); i++)
     {
-    	return false;
-    }
-
-    cout << (isRight ? "r " : "l ") << deviationSlope << " " << deviationIntercept;
-
-    for (int i = 0; i < slopes.size() && slopes.size() != 1; i++)
-    {
-    	double delta;
-
-    	if (isRight)
-    	{
-    		delta = abs(slopes[i]-lastAverageSlope)*10 + rightFound*abs(slopes[i] - lastSlope)*30 +
-            abs((cropRect.height/slopes[i]+intercepts[i])-(cropRect.height/lastAverageSlope+lastAverageIntercept)) + 
-            rightFound*abs((cropRect.height/slopes[i]+intercepts[i])-(cropRect.height/lastSlope+lastIntercept))*2;
-    	}
-    	else
-    	{
-    		delta = abs(slopes[i]-lastAverageSlope)*10 + leftFound*abs(slopes[i] - lastSlope)*30 +
-            abs(intercepts[i] - lastAverageIntercept) + leftFound*abs(intercepts[i]-lastIntercept)*2;
-    	}
-
-        if (delta > recombineThreshold)
+        distance = abs(slopes[i] - ((1+!found)*lastAverageSlope+found*lastSlope)/2)*10 + abs(intercepts[i]-((1+!found)*lastAverageIntercept+found*lastIntercept)/2);
+        if (distance > maxDist)
         {
-            noiseSlopes.push_back(slopes[i]);
-            noiseIntercepts.push_back(intercepts[i]);
-            slopes.erase(slopes.begin() + i);
-            intercepts.erase(intercepts.begin() + i);
-
-            return true;
-        }
-        else
-        {
-        	lastAverageSlope = slopes[i];
-        	lastAverageIntercept = intercepts[i];
-        	break;
+            maxIdx = i;
+            maxDist = distance;
         }
     }
 
-    cout << endl;
+    if (distance > recombineThreshold)
+    {
+        noiseSlopes.push_back(slopes[maxIdx]);
+        noiseIntercepts.push_back(intercepts[maxIdx]);
+        slopes.erase(slopes.begin() + maxIdx);
+        intercepts.erase(intercepts.begin() + maxIdx);
+        return true;
+    }
+
     return false;
 }
 
 // Method that clasifies lines obtained by Hough transformation
 void clasify(vector<Vec4i> lines)
 {
+    leftFound = leftSlopes.size() != 0;
     leftSlopes.clear();
     leftXIntercepts.clear();
     leftLines.clear();
+    rightFound = rightSlopes.size() != 0;
     rightSlopes.clear();
     rightXIntercepts.clear();
     rightLines.clear();
@@ -235,54 +214,51 @@ void clasify(vector<Vec4i> lines)
     // Devide set into left and right lanes
     for( size_t i = 0; i < lines.size(); i++ )
     {
+        // Slope calculated in "human-seen" coordinating system
         double k = (double)(lines[i][1]-lines[i][3]) / (double)(lines[i][2]-lines[i][0]);
 
         // Reject lines that are not in range of 20..60 degrees
         if (abs(k) > minSlopeDetection && abs(k) < maxSlopeDetection)
         {
-            int n = lines[i][0]-(cropRect.height-lines[i][1])/k;
+            // Value of x for y = 0 in "human-seen" coordinating system
+            int intercept = lines[i][0]-(cropRect.height-lines[i][1])/k;
 
-            if (n < halfOfROIWidth)
+            if (intercept < halfOfROIWidth)
             {
                 leftSlopes.push_back(k);
-                leftXIntercepts.push_back(n);
+                leftXIntercepts.push_back(intercept);
                 leftLines.push_back(lines[i]);
             }
             else
             {
                 rightSlopes.push_back(k);
-                rightXIntercepts.push_back(n);
+                rightXIntercepts.push_back(intercept);
                 rightLines.push_back(lines[i]);
             }
         }    
     }
 
     // Reject once that are offseting to much
-    leftFound = false;
     if (leftSlopes.size() > 0)
     {
     	lastSlope = leftSlope;
     	lastIntercept = leftXIntercept;
-        while (recombine(leftSlopes, leftXIntercepts, false));
-        leftFound = true;
+        while (recombine(leftSlopes, leftXIntercepts, leftFound));
         leftSlope = lastAverageSlope;
         leftXIntercept = lastAverageIntercept;
-        // displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 0));
         line(frame, Point((cropRect.height+leftSlope*leftXIntercept)/leftSlope +cropRect.x, cropRect.y),
                 Point(leftXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(0,255,0), 3, 8 ); 
     }
 
     // Reject once that are offseting to much
-    rightFound = false;
     if (rightSlopes.size() > 0)
     {
     	lastSlope = rightSlope;
     	lastIntercept = rightXIntercept;
-        while (recombine(rightSlopes, rightXIntercepts, true));
+        while (recombine(rightSlopes, rightXIntercepts, rightFound));
         rightFound = true;
         rightSlope = lastAverageSlope;
         rightXIntercept = lastAverageIntercept;
-        // displayLines(rightSlopes, rightXIntercepts, Scalar(255, 0, 0));
         line(frame, Point((cropRect.height+rightSlope*rightXIntercept)/rightSlope +cropRect.x, cropRect.y),
                 Point(rightXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(255,0,0), 3, 8 );  
     }
@@ -298,7 +274,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    debug = argc > 2;
+    // debug = argc > 2;
 
     VideoCapture video(argv[1]);
 
