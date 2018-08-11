@@ -198,6 +198,7 @@ void clasify(vector<Vec4i> lines)
     noiseSlopes.clear();
     noiseIntercepts.clear();
 
+    // Devide set into left and right lanes
     for( size_t i = 0; i < lines.size(); i++ )
     {
         double k = (double)(lines[i][1]-lines[i][3]) / (double)(lines[i][2]-lines[i][0]);
@@ -222,6 +223,7 @@ void clasify(vector<Vec4i> lines)
         }    
     }
 
+    // Reject once that are offseting to much
     if (leftSlopes.size() > 0)
     {
         while (recombine(leftSlopes, leftXIntercepts));
@@ -232,6 +234,7 @@ void clasify(vector<Vec4i> lines)
                 Point(leftXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(0,255,0), 3, 8 ); 
     }
 
+    // Reject once that are offseting to much
     if (rightSlopes.size() > 0)
     {
         while (recombine(rightSlopes, rightXIntercepts));
@@ -242,7 +245,7 @@ void clasify(vector<Vec4i> lines)
                 Point(rightXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(255,0,0), 3, 8 );  
     }
 
-    // displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 255, 255)); 
+    // if (debug) displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 255, 255)); 
 }
 
 int main(int argc, char** argv)
@@ -314,6 +317,7 @@ int main(int argc, char** argv)
         if (debug) imshow("Debug - Yellow", yellow);
         if (debug) imshow("Debug - White", white);
         dilate(colors, colors, dilateElement);
+        if (debug) imshow("Debug - Colors", colors);
 
         blur(edges, edges, Size(edgesBlurKernelSize, edgesBlurKernelSize));
         cvtColor(edges, edges, CV_BGR2GRAY);
