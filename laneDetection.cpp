@@ -11,7 +11,9 @@ using namespace std;
 using namespace cv;
 
 // Parameters
-double recombineThreshold = 30;
+double recombineThreshold = 20;
+double deviationSlopeTreshold = 0.03;
+double deviationInterceptTreshold = 30;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
@@ -171,6 +173,16 @@ bool recombine(vector<double>& slopes, vector<int>& intercepts, bool isRight)
     lastAverageSlope = accumulate(slopes.begin(), slopes.end(), 0.0)/slopes.size();
     lastAverageIntercept = accumulate(intercepts.begin(), intercepts.end(), 0.0)/intercepts.size();
 
+    double deviationSlope = sqrt(inner_product(slopes.begin(), slopes.end(), slopes.begin(), 0.0)/slopes.size() - lastAverageSlope*lastAverageSlope);
+    double deviationIntercept = sqrt(inner_product(intercepts.begin(), intercepts.end(), intercepts.begin(), 0.0)/intercepts.size() - lastAverageIntercept*lastAverageIntercept);
+
+    if ((isRight && deviationSlope < deviationSlopeTreshold) || (!isRight && deviationIntercept < deviationInterceptTreshold))
+    {
+    	return false;
+    }
+
+    cout << (isRight ? "r " : "l ") << deviationSlope << " " << deviationIntercept;
+
     for (int i = 0; i < slopes.size() && slopes.size() != 1; i++)
     {
     	double delta;
@@ -204,6 +216,7 @@ bool recombine(vector<double>& slopes, vector<int>& intercepts, bool isRight)
         }
     }
 
+    cout << endl;
     return false;
 }
 
