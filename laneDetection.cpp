@@ -11,7 +11,7 @@ using namespace std;
 using namespace cv;
 
 // Parameters
-double recombineThreshold = 20;
+double recombineThreshold = 30;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
@@ -42,10 +42,14 @@ vector<double>  noiseSlopes;
 vector<int>     noiseIntercepts;
 double          leftSlope;
 int             leftXIntercept;
+bool			leftFound;
 double          rightSlope;
 int             rightXIntercept;
+bool			rightFound;
 double          lastAverageSlope;
 int             lastAverageIntercept;
+double          lastSlope;
+int             lastIntercept;
 
 // Frames used by the program
 Mat frame;
@@ -160,17 +164,28 @@ void displayLines(vector<double> slopes, vector<int> intercepts, Scalar color)
 }
 
 // Method that separates noise lines, if no line is separated returns false
-bool recombine(vector<double>& slopes, vector<int>& intercepts)
+bool recombine(vector<double>& slopes, vector<int>& intercepts, bool isRight)
 {
     assert(slopes.size() == intercepts.size());
 
     lastAverageSlope = accumulate(slopes.begin(), slopes.end(), 0.0)/slopes.size();
     lastAverageIntercept = accumulate(intercepts.begin(), intercepts.end(), 0.0)/intercepts.size();
 
-    for (int i = 0; i < slopes.size(); i++)
+    for (int i = 0; i < slopes.size() && slopes.size() != 1; i++)
     {
-        double delta = abs(slopes[i]-lastAverageSlope)*10 +
-            abs((cropRect.height/slopes[i]+intercepts[i])-(cropRect.height/lastAverageSlope+lastAverageIntercept));
+    	double delta;
+
+    	if (isRight)
+    	{
+    		delta = abs(slopes[i]-lastAverageSlope)*10 + rightFound*abs(slopes[i] - lastSlope)*30 +
+            abs((cropRect.height/slopes[i]+intercepts[i])-(cropRect.height/lastAverageSlope+lastAverageIntercept)) + 
+            rightFound*abs((cropRect.height/slopes[i]+intercepts[i])-(cropRect.height/lastSlope+lastIntercept))*2;
+    	}
+    	else
+    	{
+    		delta = abs(slopes[i]-lastAverageSlope)*10 + leftFound*abs(slopes[i] - lastSlope)*30 +
+            abs(intercepts[i] - lastAverageIntercept) + leftFound*abs(intercepts[i]-lastIntercept)*2;
+    	}
 
         if (delta > recombineThreshold)
         {
@@ -180,6 +195,12 @@ bool recombine(vector<double>& slopes, vector<int>& intercepts)
             intercepts.erase(intercepts.begin() + i);
 
             return true;
+        }
+        else
+        {
+        	lastAverageSlope = slopes[i];
+        	lastAverageIntercept = intercepts[i];
+        	break;
         }
     }
 
@@ -224,9 +245,13 @@ void clasify(vector<Vec4i> lines)
     }
 
     // Reject once that are offseting to much
+    leftFound = false;
     if (leftSlopes.size() > 0)
     {
-        while (recombine(leftSlopes, leftXIntercepts));
+    	lastSlope = leftSlope;
+    	lastIntercept = leftXIntercept;
+        while (recombine(leftSlopes, leftXIntercepts, false));
+        leftFound = true;
         leftSlope = lastAverageSlope;
         leftXIntercept = lastAverageIntercept;
         // displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 0));
@@ -235,9 +260,13 @@ void clasify(vector<Vec4i> lines)
     }
 
     // Reject once that are offseting to much
+    rightFound = false;
     if (rightSlopes.size() > 0)
     {
-        while (recombine(rightSlopes, rightXIntercepts));
+    	lastSlope = rightSlope;
+    	lastIntercept = rightXIntercept;
+        while (recombine(rightSlopes, rightXIntercepts, true));
+        rightFound = true;
         rightSlope = lastAverageSlope;
         rightXIntercept = lastAverageIntercept;
         // displayLines(rightSlopes, rightXIntercepts, Scalar(255, 0, 0));
