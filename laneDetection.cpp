@@ -11,18 +11,18 @@ using namespace std;
 using namespace cv;
 
 // Parameters
-double recombineThreshold = 15;
+double recombineThreshold = 20;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
 int whiteSensitivity = 80;
 int colorsBlurKernelSize = 3;
 int colorsTreshold = 1;
-int edgesBlurKernelSize = 5;
+int edgesBlurKernelSize = 3;
 int cannyLowTreshold = 40;
 int cannyRatio = 3;
 int cannyKernelSize = 3;
 int houghTreshold = 50;
-int houghLength = 25;
+int houghLength = 35;
 int houghGap = 5;
 Scalar yellowLow(15,100,100);
 Scalar yellowHigh(40,255,255);
@@ -177,7 +177,10 @@ bool recombine(vector<double>& slopes, vector<int>& intercepts, double found)
 
     for (size_t i = 0; i < slopes.size(); i++)
     {
-        distance = abs(slopes[i] - ((1+!found)*lastAverageSlope+found*lastSlope)/2)*10 + abs(intercepts[i]-((1+!found)*lastAverageIntercept+found*lastIntercept)/2);
+        // Criteria function, punishing lines that are too offset
+        distance = abs(slopes[i] - ((1+3*!found)*lastAverageSlope+3*found*lastSlope)/4)*200
+            + abs(intercepts[i]-((1+!found)*lastAverageIntercept+found*lastIntercept)/2);
+
         if (distance > maxDist)
         {
             maxIdx = i;
@@ -185,7 +188,7 @@ bool recombine(vector<double>& slopes, vector<int>& intercepts, double found)
         }
     }
 
-    if (distance > recombineThreshold)
+    if (maxDist > recombineThreshold)
     {
         noiseSlopes.push_back(slopes[maxIdx]);
         noiseIntercepts.push_back(intercepts[maxIdx]);
@@ -246,6 +249,7 @@ void clasify(vector<Vec4i> lines)
         while (recombine(leftSlopes, leftXIntercepts, leftFound));
         leftSlope = lastAverageSlope;
         leftXIntercept = lastAverageIntercept;
+        if (debug) displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 255));
         line(frame, Point((cropRect.height+leftSlope*leftXIntercept)/leftSlope +cropRect.x, cropRect.y),
                 Point(leftXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(0,255,0), 3, 8 ); 
     }
@@ -259,11 +263,12 @@ void clasify(vector<Vec4i> lines)
         rightFound = true;
         rightSlope = lastAverageSlope;
         rightXIntercept = lastAverageIntercept;
+        if (debug) displayLines(rightSlopes, rightXIntercepts, Scalar(0, 255, 255));
         line(frame, Point((cropRect.height+rightSlope*rightXIntercept)/rightSlope +cropRect.x, cropRect.y),
                 Point(rightXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(255,0,0), 3, 8 );  
     }
 
-    // if (debug) displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 255, 255)); 
+    if (debug) displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 0, 255));
 }
 
 int main(int argc, char** argv)
@@ -274,7 +279,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // debug = argc > 2;
+    debug = argc > 2;
 
     VideoCapture video(argv[1]);
 
@@ -327,6 +332,7 @@ int main(int argc, char** argv)
         colors = croppedFrame.clone();
         edges = croppedFrame.clone();
         
+        // Colors processing
         blur(colors, colors, Size(colorsBlurKernelSize, colorsBlurKernelSize));
         cvtColor(colors, colors, CV_BGR2HSV);
         inRange(colors, yellowLow, yellowHigh, yellow);
@@ -337,6 +343,7 @@ int main(int argc, char** argv)
         dilate(colors, colors, dilateElement);
         if (debug) imshow("Debug - Colors", colors);
 
+        // Edges processing
         blur(edges, edges, Size(edgesBlurKernelSize, edgesBlurKernelSize));
         cvtColor(edges, edges, CV_BGR2GRAY);
         Canny(edges, edges, cannyLowTreshold, cannyLowTreshold*cannyRatio, cannyKernelSize);
@@ -347,16 +354,10 @@ int main(int argc, char** argv)
         if (debug) imshow("Debug - Lanes", lanes);
         HoughLinesP(lanes, houghLanes, 1, CV_PI/180, houghTreshold, houghLength, houghGap);
 
-        if (debug)
-        {
-            for( size_t i = 0; i < houghLanes.size(); i++ )
-            {
-                line(frame, Point(houghLanes[i][0]+cropRect.x, houghLanes[i][1]+cropRect.y),
-                    Point(houghLanes[i][2]+cropRect.x, houghLanes[i][3]+cropRect.y), Scalar(0,0,255), 3, 8 );
-            }
-        }
+        // Separate lines into left, right and noise
         clasify(houghLanes);
 
+        // Show the result
         imshow(mainWindowName, frame);
 
         // Press q on keyboard to exit
@@ -370,6 +371,7 @@ int main(int argc, char** argv)
             break;
     }
 
+    // Performance check
     auto end = chrono::steady_clock::now();
     double elapsed_secs = chrono::duration_cast<chrono::milliseconds>(end - start).count() * 1.0 / 1000.0;
     cout << "Image processing took " << elapsed_secs << "s while video lasted for " << numOfFrames/fps << endl;
