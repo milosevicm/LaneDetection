@@ -14,7 +14,7 @@ using namespace cv;
 double recombineThreshold = 20;
 double minSlopeDetection = tan(20*CV_PI/180);
 double maxSlopeDetection = tan(60*CV_PI/180);
-int whiteSensitivity = 80;
+int whiteSensitivity = 120;
 int colorsBlurKernelSize = 3;
 int colorsTreshold = 1;
 int edgesBlurKernelSize = 3;
@@ -251,7 +251,7 @@ void clasify(vector<Vec4i> lines)
         leftXIntercept = lastAverageIntercept;
         if (debug) displayLines(leftSlopes, leftXIntercepts, Scalar(0, 255, 255));
         line(frame, Point((cropRect.height+leftSlope*leftXIntercept)/leftSlope +cropRect.x, cropRect.y),
-                Point(leftXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(0,255,0), 3, 8 ); 
+                Point(leftXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(255,0,0), 3, 8 ); 
     }
 
     // Reject once that are offseting to much
@@ -265,7 +265,7 @@ void clasify(vector<Vec4i> lines)
         rightXIntercept = lastAverageIntercept;
         if (debug) displayLines(rightSlopes, rightXIntercepts, Scalar(0, 255, 255));
         line(frame, Point((cropRect.height+rightSlope*rightXIntercept)/rightSlope +cropRect.x, cropRect.y),
-                Point(rightXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(255,0,0), 3, 8 );  
+                Point(rightXIntercept+cropRect.x, cropRect.height+cropRect.y), Scalar(0,255,0), 3, 8 );  
     }
 
     if (debug) displayLines(noiseSlopes, noiseIntercepts, Scalar(0, 0, 255));
